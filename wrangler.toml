@@ -1,0 +1,6 @@
+name = "gudang-roti-boss-api"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+[triggers]
+crons = ["*/4 * * * *"]   # setiap 4 menit warm-up
