@@ -5,12 +5,13 @@ const GAS_URL =
 export default {
 
   // ==========================================================
-  // HTTP REQUEST
+  // FETCH
   // ==========================================================
 
   async fetch(request, env, ctx) {
 
     const url = new URL(request.url);
+    const pathname = url.pathname;
 
 
     // ========================================================
@@ -20,13 +21,8 @@ export default {
     if (request.method === "OPTIONS") {
 
       return new Response(null, {
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods":
-            "GET, POST, PUT, DELETE, OPTIONS",
-          "Access-Control-Allow-Headers":
-            "Content-Type"
-        }
+        status: 204,
+        headers: corsHeaders()
       });
 
     }
@@ -41,7 +37,7 @@ export default {
 
       if (
         request.method === "GET" &&
-        url.pathname === "/api/db-test"
+        pathname === "/api/db-test"
       ) {
 
         const result =
@@ -58,9 +54,7 @@ export default {
         return json({
           success: true,
           database: "roti-boss-gudang",
-          tables: result.results.map(
-            row => row.name
-          )
+          tables: result.results.map(row => row.name)
         });
 
       }
@@ -68,14 +62,14 @@ export default {
 
       // ======================================================
       // D1 — BAHAN
+      // /api/bahan
       // ======================================================
 
-      if (url.pathname === "/api/bahan") {
+      if (pathname === "/api/bahan") {
 
-
-        // ====================================================
-        // GET — SEMUA BAHAN
-        // ====================================================
+        // ----------------------------------------------------
+        // GET SEMUA BAHAN
+        // ----------------------------------------------------
 
         if (request.method === "GET") {
 
@@ -102,14 +96,13 @@ export default {
         }
 
 
-        // ====================================================
-        // POST — TAMBAH BAHAN
-        // ====================================================
+        // ----------------------------------------------------
+        // POST TAMBAH BAHAN
+        // ----------------------------------------------------
 
         if (request.method === "POST") {
 
-          const data =
-            await request.json();
+          const data = await request.json();
 
 
           if (
@@ -155,6 +148,17 @@ export default {
             String(data.petugas || "").trim();
 
 
+          if (!sku || !nama || !satuan) {
+
+            return json({
+              success: false,
+              message:
+                "SKU, nama, dan satuan wajib diisi"
+            }, 400);
+
+          }
+
+
           if (stok < 0) {
 
             return json({
@@ -167,7 +171,32 @@ export default {
 
 
           // --------------------------------------------------
-          // INSERT BAHAN
+          // CEK SKU DUPLIKAT
+          // --------------------------------------------------
+
+          const existing =
+            await env.DB.prepare(`
+              SELECT sku
+              FROM bahan
+              WHERE sku = ?
+            `)
+            .bind(sku)
+            .first();
+
+
+          if (existing) {
+
+            return json({
+              success: false,
+              message:
+                `SKU ${sku} sudah terdaftar`
+            }, 409);
+
+          }
+
+
+          // --------------------------------------------------
+          // INSERT
           // --------------------------------------------------
 
           await env.DB.prepare(`
@@ -253,14 +282,13 @@ export default {
         }
 
 
-        // ====================================================
-        // PUT — UPDATE BAHAN
-        // ====================================================
+        // ----------------------------------------------------
+        // PUT UPDATE BAHAN
+        // ----------------------------------------------------
 
         if (request.method === "PUT") {
 
-          const data =
-            await request.json();
+          const data = await request.json();
 
 
           if (!data || !data.sku) {
@@ -352,14 +380,13 @@ export default {
         }
 
 
-        // ====================================================
-        // DELETE — HAPUS BAHAN
-        // ====================================================
+        // ----------------------------------------------------
+        // DELETE BAHAN
+        // ----------------------------------------------------
 
         if (request.method === "DELETE") {
 
-          const data =
-            await request.json();
+          const data = await request.json();
 
 
           if (!data || !data.sku) {
@@ -417,14 +444,14 @@ export default {
 
       // ======================================================
       // D1 — RESEP
+      // /api/resep
       // ======================================================
 
-      if (url.pathname === "/api/resep") {
+      if (pathname === "/api/resep") {
 
-
-        // ====================================================
+        // ----------------------------------------------------
         // GET
-        // ====================================================
+        // ----------------------------------------------------
 
         if (request.method === "GET") {
 
@@ -449,14 +476,13 @@ export default {
         }
 
 
-        // ====================================================
+        // ----------------------------------------------------
         // POST
-        // ====================================================
+        // ----------------------------------------------------
 
         if (request.method === "POST") {
 
-          const data =
-            await request.json();
+          const data = await request.json();
 
 
           if (
@@ -552,14 +578,13 @@ export default {
         }
 
 
-        // ====================================================
+        // ----------------------------------------------------
         // PUT
-        // ====================================================
+        // ----------------------------------------------------
 
         if (request.method === "PUT") {
 
-          const data =
-            await request.json();
+          const data = await request.json();
 
 
           if (
@@ -642,14 +667,13 @@ export default {
         }
 
 
-        // ====================================================
+        // ----------------------------------------------------
         // DELETE
-        // ====================================================
+        // ----------------------------------------------------
 
         if (request.method === "DELETE") {
 
-          const data =
-            await request.json();
+          const data = await request.json();
 
 
           if (
@@ -722,12 +746,11 @@ export default {
       // ======================================================
 
       if (
-        url.pathname === "/api/produksi" &&
+        pathname === "/api/produksi" &&
         request.method === "POST"
       ) {
 
-        const data =
-          await request.json();
+        const data = await request.json();
 
 
         if (
@@ -771,10 +794,6 @@ export default {
         }
 
 
-        // ----------------------------------------------------
-        // AMBIL RESEP
-        // ----------------------------------------------------
-
         const resep =
           await env.DB.prepare(`
             SELECT
@@ -807,12 +826,12 @@ export default {
         }
 
 
-        // ----------------------------------------------------
-        // CEK SEMUA STOK DULU
-        // ----------------------------------------------------
-
         const kebutuhan = [];
 
+
+        // ----------------------------------------------------
+        // CEK SEMUA STOK TERLEBIH DAHULU
+        // ----------------------------------------------------
 
         for (const item of resep.results) {
 
@@ -848,10 +867,6 @@ export default {
 
         }
 
-
-        // ----------------------------------------------------
-        // UPDATE + TRANSAKSI
-        // ----------------------------------------------------
 
         const statements = [];
 
@@ -931,12 +946,12 @@ export default {
 
 
       // ======================================================
-      // D1 — TRANSAKSI
+      // D1 — TRANSAKSI GET
       // GET /api/transaksi
       // ======================================================
 
       if (
-        url.pathname === "/api/transaksi" &&
+        pathname === "/api/transaksi" &&
         request.method === "GET"
       ) {
 
@@ -969,24 +984,27 @@ export default {
 
 
       // ======================================================
-      // D1 — TRANSAKSI
-      // POST /api/transaksi
+      // D1 — TRANSAKSI POST
       //
-      // MODE 1:
+      // MODE A:
       // idTransaksi -> BATALKAN
       //
-      // MODE 2:
+      // MODE B:
       // sku + tipe + qty -> SIMPAN
       // ======================================================
 
       if (
-        url.pathname === "/api/transaksi" &&
+        pathname === "/api/transaksi" &&
         request.method === "POST"
       ) {
 
         const data =
           await request.json();
 
+
+        // ====================================================
+        // MODE A — BATALKAN
+        // ====================================================
 
         const idTransaksi =
           String(
@@ -995,10 +1013,6 @@ export default {
             ""
           ).trim();
 
-
-        // ====================================================
-        // MODE 1 — BATALKAN TRANSAKSI
-        // ====================================================
 
         if (idTransaksi) {
 
@@ -1051,6 +1065,7 @@ export default {
             await env.DB.prepare(`
               SELECT
                 sku,
+                nama,
                 stok,
                 satuan
               FROM bahan
@@ -1081,6 +1096,10 @@ export default {
           let stokBaru;
 
 
+          // --------------------------------------------------
+          // KELUAR DIBATALKAN -> STOK KEMBALI
+          // --------------------------------------------------
+
           if (transaksi.tipe === "Keluar") {
 
             stokBaru =
@@ -1088,9 +1107,12 @@ export default {
 
           }
 
-          else if (
-            transaksi.tipe === "Masuk"
-          ) {
+
+          // --------------------------------------------------
+          // MASUK DIBATALKAN -> STOK DIKURANGI
+          // --------------------------------------------------
+
+          else if (transaksi.tipe === "Masuk") {
 
             stokBaru =
               stokSekarang - qty;
@@ -1101,14 +1123,21 @@ export default {
               return json({
                 success: false,
                 message:
-                  `Pembatalan ditolak. Stok ${transaksi.nama} ` +
-                  `sekarang ${stokSekarang} ${bahan.satuan}, ` +
-                  `tetapi perlu mengurangi ${qty} ${transaksi.satuan}.`
+                  `Pembatalan ditolak. Stok ` +
+                  `${transaksi.nama} sekarang ` +
+                  `${stokSekarang} ${bahan.satuan}, ` +
+                  `tetapi perlu mengurangi ${qty} ` +
+                  `${transaksi.satuan}.`
               }, 400);
 
             }
 
           }
+
+
+          // --------------------------------------------------
+          // RUSAK / EXPIRED DIBATALKAN -> STOK KEMBALI
+          // --------------------------------------------------
 
           else if (
             transaksi.tipe === "Rusak-Expired"
@@ -1118,6 +1147,7 @@ export default {
               stokSekarang + qty;
 
           }
+
 
           else {
 
@@ -1147,7 +1177,6 @@ export default {
               transaksi.sku
             ),
 
-
             env.DB.prepare(`
               UPDATE transaksi
               SET keterangan = ?
@@ -1166,7 +1195,8 @@ export default {
             message:
               `Transaksi berhasil dibatalkan. ` +
               `Stok ${transaksi.nama}: ` +
-              `${stokSekarang} → ${stokBaru} ${bahan.satuan}.`,
+              `${stokSekarang} → ${stokBaru} ` +
+              `${bahan.satuan}.`,
             data: {
               idTransaksi,
               sku: transaksi.sku,
@@ -1181,7 +1211,7 @@ export default {
 
 
         // ====================================================
-        // MODE 2 — SIMPAN TRANSAKSI
+        // MODE B — SIMPAN
         // ====================================================
 
         if (
@@ -1205,17 +1235,15 @@ export default {
         const tipe =
           String(data.tipe).trim();
 
-        const nama =
-          String(data.nama || "").trim();
-
-        const satuan =
-          String(data.satuan || "").trim();
-
         const petugas =
-          String(data.petugas || "Unknown").trim();
+          String(
+            data.petugas || "Unknown"
+          ).trim();
 
         const keterangan =
-          String(data.keterangan || "").trim();
+          String(
+            data.keterangan || ""
+          ).trim();
 
         const qty =
           Number(data.qty);
@@ -1238,7 +1266,28 @@ export default {
 
 
         // ----------------------------------------------------
-        // AMBIL BAHAN
+        // VALIDASI TIPE
+        // ----------------------------------------------------
+
+        if (
+          ![
+            "Masuk",
+            "Keluar",
+            "Rusak-Expired"
+          ].includes(tipe)
+        ) {
+
+          return json({
+            success: false,
+            message:
+              `Tipe transaksi "${tipe}" tidak dikenal`
+          }, 400);
+
+        }
+
+
+        // ----------------------------------------------------
+        // AMBIL BAHAN DARI D1
         // ----------------------------------------------------
 
         const bahan =
@@ -1261,7 +1310,7 @@ export default {
           return json({
             success: false,
             message:
-              "SKU tidak ditemukan!"
+              `SKU ${sku} tidak ditemukan!`
           }, 404);
 
         }
@@ -1290,10 +1339,7 @@ export default {
         // KELUAR / RUSAK
         // ----------------------------------------------------
 
-        else if (
-          tipe === "Keluar" ||
-          tipe === "Rusak-Expired"
-        ) {
+        else {
 
           if (
             qty > stokLama &&
@@ -1312,6 +1358,8 @@ export default {
           }
 
 
+          // Tetap 0 kalau forceNegative.
+          // Sesuai perilaku Worker sebelumnya.
           stokBaru =
             Math.max(
               0,
@@ -1321,29 +1369,20 @@ export default {
         }
 
 
-        else {
-
-          return json({
-            success: false,
-            message:
-              `Tipe transaksi "${tipe}" tidak dikenal`
-          }, 400);
-
-        }
-
-
         // ----------------------------------------------------
-        // EXPIRED — HANYA MASUK
+        // EXPIRED
+        // HANYA BOLEH DISET SAAT MASUK
         // ----------------------------------------------------
 
         const expired =
-          data.exp && tipe === "Masuk"
+          data.exp &&
+          tipe === "Masuk"
             ? String(data.exp).trim()
             : null;
 
 
         // ----------------------------------------------------
-        // ID TRANSAKSI
+        // DATA TRANSAKSI
         // ----------------------------------------------------
 
         const newId =
@@ -1352,38 +1391,51 @@ export default {
         const timestamp =
           new Date().toISOString();
 
+        const nama =
+          String(
+            data.nama || bahan.nama
+          ).trim() || bahan.nama;
+
+        const satuan =
+          String(
+            data.satuan || bahan.satuan
+          ).trim() || bahan.satuan;
+
 
         // ----------------------------------------------------
-        // UPDATE + INSERT ATOMIC
+        // UPDATE STOK
         // ----------------------------------------------------
 
-        const statements = [];
+        const updateBahan =
+          expired
+            ? env.DB.prepare(`
+                UPDATE bahan
+                SET
+                  stok = ?,
+                  expired = ?
+                WHERE sku = ?
+              `)
+              .bind(
+                stokBaru,
+                expired,
+                sku
+              )
+            : env.DB.prepare(`
+                UPDATE bahan
+                SET stok = ?
+                WHERE sku = ?
+              `)
+              .bind(
+                stokBaru,
+                sku
+              );
 
 
-        statements.push(
-          env.DB.prepare(`
-            UPDATE bahan
-            SET
-              stok = ?
-              ${expired ? ", expired = ?" : ""}
-            WHERE sku = ?
-          `)
-          .bind(
-            ...(expired
-              ? [
-                  stokBaru,
-                  expired,
-                  sku
-                ]
-              : [
-                  stokBaru,
-                  sku
-                ])
-          )
-        );
+        // ----------------------------------------------------
+        // INSERT TRANSAKSI
+        // ----------------------------------------------------
 
-
-        statements.push(
+        const insertTransaksi =
           env.DB.prepare(`
             INSERT INTO transaksi (
               id_transaksi,
@@ -1405,27 +1457,32 @@ export default {
             timestamp,
             tipe,
             sku,
-            nama || bahan.nama,
+            nama,
             qty,
-            satuan || bahan.satuan,
+            satuan,
             stokLama,
             stokBaru,
             keterangan,
             petugas
-          )
-        );
+          );
 
 
-        await env.DB.batch(statements);
+        // ----------------------------------------------------
+        // ATOMIC
+        // ----------------------------------------------------
+
+        await env.DB.batch([
+          updateBahan,
+          insertTransaksi
+        ]);
 
 
         return json({
           success: true,
           message:
             `${tipe} berhasil! ` +
-            `${nama || bahan.nama}: ` +
-            `${stokLama} → ${stokBaru} ` +
-            `${satuan || bahan.satuan}`,
+            `${nama}: ` +
+            `${stokLama} → ${stokBaru} ${satuan}`,
           stokLama,
           stokBaru,
           idTransaksi: newId
@@ -1435,141 +1492,16 @@ export default {
 
 
       // ======================================================
-      // ROUTE LAMA → GAS
+      // ROUTE LAMA -> GAS
+      //
+      // Semua URL non-D1 tetap diteruskan ke GAS.
       // ======================================================
 
-      const gasUrl =
-        GAS_URL + url.search;
-
-
-      // ======================================================
-      // CACHE
-      // ======================================================
-
-      const cache =
-        caches.default;
-
-
-      const cacheKey =
-        new Request(
-          gasUrl,
-          request
-        );
-
-
-      // ======================================================
-      // CACHE HIT
-      // ======================================================
-
-      if (request.method === "GET") {
-
-        const cached =
-          await cache.match(
-            cacheKey
-          );
-
-
-        if (cached) {
-
-          const res =
-            new Response(
-              cached.body,
-              cached
-            );
-
-
-          res.headers.set(
-            "Access-Control-Allow-Origin",
-            "*"
-          );
-
-          res.headers.set(
-            "X-Cache",
-            "HIT"
-          );
-
-
-          return res;
-
-        }
-
-      }
-
-
-      // ======================================================
-      // REQUEST KE GAS
-      // ======================================================
-
-      const gasResponse =
-        await fetch(
-          gasUrl,
-          {
-            method:
-              request.method,
-
-            headers: {
-              "Content-Type":
-                "application/json"
-            },
-
-            body:
-              request.method === "POST" ||
-              request.method === "PUT" ||
-              request.method === "DELETE"
-                ? await request.text()
-                : null
-          }
-        );
-
-
-      // ======================================================
-      // RESPONSE GAS
-      // ======================================================
-
-      const response =
-        new Response(
-          gasResponse.body,
-          gasResponse
-        );
-
-
-      response.headers.set(
-        "Access-Control-Allow-Origin",
-        "*"
+      return await proxyToGas(
+        request,
+        url,
+        ctx
       );
-
-      response.headers.set(
-        "X-Cache",
-        "MISS"
-      );
-
-
-      // ======================================================
-      // CACHE GET
-      // ======================================================
-
-      if (
-        request.method === "GET" &&
-        gasResponse.ok
-      ) {
-
-        response.headers.set(
-          "Cache-Control",
-          "s-maxage=45"
-        );
-
-
-        ctx.waitUntil(
-          cache.put(
-            cacheKey,
-            response.clone()
-          )
-        );
-
-      }
-
-
-      return response;
 
 
     } catch (err) {
@@ -1582,8 +1514,10 @@ export default {
 
       return json({
         success: false,
+        message:
+          "Terjadi kesalahan server",
         error:
-          err.message
+          err?.message || String(err)
       }, 500);
 
     }
@@ -1604,8 +1538,7 @@ export default {
     try {
 
       await fetch(
-        GAS_URL +
-        "?action=ping"
+        GAS_URL + "?action=ping"
       );
 
 
@@ -1618,7 +1551,7 @@ export default {
 
       console.log(
         "❌ Warm-up failed:",
-        err.message
+        err?.message || String(err)
       );
 
     }
@@ -1629,7 +1562,164 @@ export default {
 
 
 // ==========================================================
-// HELPER — JSON RESPONSE
+// PROXY GAS
+// ==========================================================
+
+async function proxyToGas(
+  request,
+  url,
+  ctx
+) {
+
+  const gasUrl =
+    GAS_URL + url.search;
+
+
+  const cache =
+    caches.default;
+
+
+  const cacheKey =
+    new Request(
+      gasUrl,
+      request
+    );
+
+
+  // --------------------------------------------------------
+  // CACHE GET
+  // --------------------------------------------------------
+
+  if (request.method === "GET") {
+
+    const cached =
+      await cache.match(cacheKey);
+
+
+    if (cached) {
+
+      const res =
+        new Response(
+          cached.body,
+          cached
+        );
+
+
+      res.headers.set(
+        "Access-Control-Allow-Origin",
+        "*"
+      );
+
+      res.headers.set(
+        "X-Cache",
+        "HIT"
+      );
+
+
+      return res;
+
+    }
+
+  }
+
+
+  // --------------------------------------------------------
+  // REQUEST GAS
+  // --------------------------------------------------------
+
+  const gasResponse =
+    await fetch(
+      gasUrl,
+      {
+        method:
+          request.method,
+
+        headers: {
+          "Content-Type":
+            "application/json"
+        },
+
+        body:
+          [
+            "POST",
+            "PUT",
+            "DELETE"
+          ].includes(request.method)
+            ? await request.text()
+            : null
+      }
+    );
+
+
+  const response =
+    new Response(
+      gasResponse.body,
+      gasResponse
+    );
+
+
+  response.headers.set(
+    "Access-Control-Allow-Origin",
+    "*"
+  );
+
+  response.headers.set(
+    "X-Cache",
+    "MISS"
+  );
+
+
+  // --------------------------------------------------------
+  // CACHE GET
+  // --------------------------------------------------------
+
+  if (
+    request.method === "GET" &&
+    gasResponse.ok
+  ) {
+
+    response.headers.set(
+      "Cache-Control",
+      "s-maxage=45"
+    );
+
+
+    ctx.waitUntil(
+      cache.put(
+        cacheKey,
+        response.clone()
+      )
+    );
+
+  }
+
+
+  return response;
+
+}
+
+
+// ==========================================================
+// CORS HEADERS
+// ==========================================================
+
+function corsHeaders() {
+
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods":
+      "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers":
+      "Content-Type",
+    "Access-Control-Max-Age":
+      "86400"
+  };
+
+}
+
+
+// ==========================================================
+// JSON RESPONSE
 // ==========================================================
 
 function json(
@@ -1644,8 +1734,7 @@ function json(
       headers: {
         "Content-Type":
           "application/json",
-        "Access-Control-Allow-Origin":
-          "*"
+        ...corsHeaders()
       }
     }
   );
