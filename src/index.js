@@ -1211,6 +1211,284 @@ if (
 
 }
 
+// ==========================================================
+// D1 — TRANSAKSI
+// POST /api/transaksi
+//
+// Batalkan transaksi:
+// - Keluar  -> stok dikembalikan
+// - Masuk   -> stok dikurangi kembali
+// - transaksi diberi tanda [DIBATALKAN]
+// ==========================================================
+
+if (
+  url.pathname === "/api/transaksi" &&
+  request.method === "POST"
+) {
+
+  const data = await request.json();
+
+  const idTransaksi =
+    String(
+      data?.idTransaksi ||
+      data?.id_transaksi ||
+      ""
+    ).trim();
+
+  if (!idTransaksi) {
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: "ID transaksi wajib diisi"
+      }),
+      {
+        status: 400,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+
+  }
+
+
+  // --------------------------------------------------------
+  // AMBIL TRANSAKSI
+  // --------------------------------------------------------
+
+  const transaksi =
+    await env.DB.prepare(`
+      SELECT
+        id_transaksi,
+        tipe,
+        sku,
+        nama,
+        qty,
+        satuan,
+        stok_lama,
+        stok_akhir,
+        keterangan,
+        petugas
+      FROM transaksi
+      WHERE id_transaksi = ?
+    `)
+    .bind(idTransaksi)
+    .first();
+
+
+  if (!transaksi) {
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: "Transaksi tidak ditemukan"
+      }),
+      {
+        status: 404,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+
+  }
+
+
+  // --------------------------------------------------------
+  // CEGAH UNDO GANDA
+  // --------------------------------------------------------
+
+  if (
+    String(transaksi.keterangan || "")
+      .includes("[DIBATALKAN]")
+  ) {
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: "Transaksi ini sudah dibatalkan"
+      }),
+      {
+        status: 400,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+
+  }
+
+
+  // --------------------------------------------------------
+  // AMBIL STOK TERKINI
+  // --------------------------------------------------------
+
+  const bahan =
+    await env.DB.prepare(`
+      SELECT
+        sku,
+        stok,
+        satuan
+      FROM bahan
+      WHERE sku = ?
+    `)
+    .bind(transaksi.sku)
+    .first();
+
+
+  if (!bahan) {
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message:
+          `Bahan ${transaksi.sku} tidak ditemukan`
+      }),
+      {
+        status: 404,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+
+  }
+
+
+  const stokSekarang =
+    Number(bahan.stok) || 0;
+
+  const qty =
+    Number(transaksi.qty) || 0;
+
+
+  let stokBaru;
+
+
+  // --------------------------------------------------------
+  // HITUNG STOK HASIL PEMBATALAN
+  // --------------------------------------------------------
+
+  if (transaksi.tipe === "Keluar") {
+
+    stokBaru =
+      stokSekarang + qty;
+
+  } else if (transaksi.tipe === "Masuk") {
+
+    stokBaru =
+      stokSekarang - qty;
+
+    if (stokBaru < 0) {
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message:
+            `Pembatalan ditolak. Stok ${transaksi.nama} ` +
+            `sekarang ${stokSekarang} ${bahan.satuan}, ` +
+            `tetapi perlu mengurangi ${qty} ${transaksi.satuan}.`
+        }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
+        }
+      );
+
+    }
+
+  } else {
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message:
+          `Tipe transaksi "${transaksi.tipe}" belum bisa dibatalkan`
+      }),
+      {
+        status: 400,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+
+  }
+
+
+  // --------------------------------------------------------
+  // UPDATE D1
+  // --------------------------------------------------------
+
+  const keteranganBaru =
+    `${transaksi.keterangan || ""} [DIBATALKAN]`;
+
+
+  await env.DB.batch([
+
+    env.DB.prepare(`
+      UPDATE bahan
+      SET stok = ?
+      WHERE sku = ?
+    `)
+    .bind(
+      stokBaru,
+      transaksi.sku
+    ),
+
+    env.DB.prepare(`
+      UPDATE transaksi
+      SET keterangan = ?
+      WHERE id_transaksi = ?
+    `)
+    .bind(
+      keteranganBaru,
+      idTransaksi
+    )
+
+  ]);
+
+
+  // --------------------------------------------------------
+  // RESPONSE
+  // --------------------------------------------------------
+
+  return new Response(
+    JSON.stringify({
+      success: true,
+      message:
+        `Transaksi berhasil dibatalkan. ` +
+        `Stok ${transaksi.nama}: ` +
+        `${stokSekarang} → ${stokBaru} ${bahan.satuan}.`,
+      data: {
+        idTransaksi,
+        sku: transaksi.sku,
+        tipe: transaksi.tipe,
+        qty,
+        stokLama: stokSekarang,
+        stokAkhir: stokBaru
+      }
+    }),
+    {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      }
+    }
+  );
+
+}
+
 
       // ======================================================
       // ROUTE LAMA → GAS
