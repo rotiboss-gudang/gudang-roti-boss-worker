@@ -854,7 +854,7 @@ if (url.pathname === "/api/transaksi") {
         timestamp,
         tipe,
         sku,
-        nama,
+        nama_bahan AS nama,
         qty,
         satuan,
         stok_awal AS stokLama,
