@@ -1166,6 +1166,51 @@ export default {
 
       }
 
+// ==========================================================
+// D1 — TRANSAKSI
+// GET /api/transaksi
+// ==========================================================
+
+if (
+  url.pathname === "/api/transaksi" &&
+  request.method === "GET"
+) {
+
+  const result =
+    await env.DB.prepare(`
+      SELECT
+        id_transaksi,
+        timestamp,
+        tipe,
+        sku,
+        nama,
+        qty,
+        satuan,
+        stok_lama AS stokLama,
+        stok_akhir AS stokAkhir,
+        keterangan,
+        petugas
+      FROM transaksi
+      ORDER BY timestamp DESC
+      LIMIT 200
+    `).all();
+
+  return new Response(
+    JSON.stringify({
+      success: true,
+      data: result.results
+    }),
+    {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      }
+    }
+  );
+
+}
+
 
       // ======================================================
       // ROUTE LAMA → GAS
