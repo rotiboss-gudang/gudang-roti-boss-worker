@@ -98,6 +98,178 @@ export default {
 
       }
 
+// ==========================================================
+// D1 — BAHAN
+// GET  /api/bahan
+// POST /api/bahan
+// ==========================================================
+
+if (
+  url.pathname === "/api/bahan"
+) {
+
+  // --------------------------------------------------------
+  // GET — ambil semua bahan
+  // --------------------------------------------------------
+
+  if (request.method === "GET") {
+
+    const result = await env.DB.prepare(`
+      SELECT
+        sku,
+        nama,
+        kategori,
+        stok,
+        satuan,
+        min_stok AS minStok,
+        expired
+      FROM bahan
+      ORDER BY nama COLLATE NOCASE ASC
+    `).all();
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        data: result.results
+      }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+  }
+
+
+  // --------------------------------------------------------
+  // POST — tambah bahan
+  // --------------------------------------------------------
+
+  if (request.method === "POST") {
+
+    const data = await request.json();
+
+    if (
+      !data ||
+      !data.sku ||
+      !data.nama ||
+      !data.satuan
+    ) {
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: "SKU, nama, dan satuan wajib diisi"
+        }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
+        }
+      );
+    }
+
+
+    const sku =
+      String(data.sku).trim();
+
+    const nama =
+      String(data.nama).trim();
+
+    const kategori =
+      String(data.kategori || "").trim();
+
+    const stok =
+      Number(data.stok) || 0;
+
+    const satuan =
+      String(data.satuan).trim();
+
+    const minStok =
+      Number(data.minStok) || 0;
+
+    const expired =
+      data.expired
+        ? String(data.expired).trim()
+        : null;
+
+
+    // ------------------------------------------------------
+    // INSERT
+    // ------------------------------------------------------
+
+    await env.DB.prepare(`
+      INSERT INTO bahan (
+        sku,
+        nama,
+        kategori,
+        stok,
+        satuan,
+        min_stok,
+        expired
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `)
+      .bind(
+        sku,
+        nama,
+        kategori,
+        stok,
+        satuan,
+        minStok,
+        expired
+      )
+      .run();
+
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Bahan berhasil ditambahkan",
+        data: {
+          sku,
+          nama,
+          kategori,
+          stok,
+          satuan,
+          minStok,
+          expired
+        }
+      }),
+      {
+        status: 201,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+  }
+
+
+  // --------------------------------------------------------
+  // METHOD TIDAK DIDUKUNG
+  // --------------------------------------------------------
+
+  return new Response(
+    JSON.stringify({
+      success: false,
+      message: "Method tidak didukung"
+    }),
+    {
+      status: 405,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      }
+    }
+  );
+}
+
 
       // ======================================================
       // ROUTE LAMA → GAS
