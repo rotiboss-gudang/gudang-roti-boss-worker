@@ -643,6 +643,175 @@ if (
 
   }
 
+// --------------------------------------------------------
+// PUT — update qty resep
+// --------------------------------------------------------
+
+if (request.method === "PUT") {
+
+  const data = await request.json();
+
+  if (!data || !data.produk || !data.sku ||
+      data.qtyPerBatch === undefined) {
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: "Produk, SKU, dan qtyPerBatch wajib diisi"
+      }),
+      {
+        status: 400,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+  }
+
+  const produk = String(data.produk).trim();
+  const sku = String(data.sku).trim();
+  const qtyPerBatch = Number(data.qtyPerBatch);
+
+  if (!Number.isFinite(qtyPerBatch) || qtyPerBatch <= 0) {
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: "qtyPerBatch harus lebih dari 0"
+      }),
+      {
+        status: 400,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+  }
+
+  const result = await env.DB.prepare(`
+    UPDATE resep
+    SET qty_per_batch = ?
+    WHERE produk = ?
+      AND sku = ?
+  `)
+  .bind(
+    qtyPerBatch,
+    produk,
+    sku
+  )
+  .run();
+
+  if (result.meta.changes === 0) {
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: "Item resep tidak ditemukan"
+      }),
+      {
+        status: 404,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+  }
+
+  return new Response(
+    JSON.stringify({
+      success: true,
+      message: "Resep berhasil diupdate",
+      data: {
+        produk,
+        sku,
+        qtyPerBatch
+      }
+    }),
+    {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      }
+    }
+  );
+}
+
+
+// --------------------------------------------------------
+// DELETE — hapus item resep
+// --------------------------------------------------------
+
+if (request.method === "DELETE") {
+
+  const data = await request.json();
+
+  if (!data || !data.produk || !data.sku) {
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: "Produk dan SKU wajib diisi"
+      }),
+      {
+        status: 400,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+  }
+
+  const produk = String(data.produk).trim();
+  const sku = String(data.sku).trim();
+
+  const result = await env.DB.prepare(`
+    DELETE FROM resep
+    WHERE produk = ?
+      AND sku = ?
+  `)
+  .bind(
+    produk,
+    sku
+  )
+  .run();
+
+  if (result.meta.changes === 0) {
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: "Item resep tidak ditemukan"
+      }),
+      {
+        status: 404,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+  }
+
+  return new Response(
+    JSON.stringify({
+      success: true,
+      message: "Resep berhasil dihapus"
+    }),
+    {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      }
+    }
+  );
+}
+
 
   // --------------------------------------------------------
   // METHOD TIDAK DIDUKUNG
