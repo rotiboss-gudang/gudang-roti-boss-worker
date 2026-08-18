@@ -452,6 +452,219 @@ if (request.method === "DELETE") {
   );
 }
 
+// ==========================================================
+// D1 — RESEP
+// GET  /api/resep
+// POST /api/resep
+// ==========================================================
+
+if (
+  url.pathname === "/api/resep"
+) {
+
+  // --------------------------------------------------------
+  // GET — ambil semua resep
+  // --------------------------------------------------------
+
+  if (request.method === "GET") {
+
+    const result =
+      await env.DB.prepare(`
+        SELECT
+          produk,
+          sku,
+          qty_per_batch AS qtyPerBatch
+        FROM resep
+        ORDER BY produk COLLATE NOCASE ASC,
+                 sku COLLATE NOCASE ASC
+      `).all();
+
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        data: result.results
+      }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+
+  }
+
+
+  // --------------------------------------------------------
+  // POST — tambah resep
+  // --------------------------------------------------------
+
+  if (request.method === "POST") {
+
+    const data =
+      await request.json();
+
+
+    if (
+      !data ||
+      !data.produk ||
+      !data.sku ||
+      data.qtyPerBatch === undefined
+    ) {
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message:
+            "Produk, SKU, dan qtyPerBatch wajib diisi"
+        }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
+        }
+      );
+
+    }
+
+
+    const produk =
+      String(data.produk).trim();
+
+    const sku =
+      String(data.sku).trim();
+
+    const qtyPerBatch =
+      Number(data.qtyPerBatch);
+
+
+    if (
+      !produk ||
+      !sku ||
+      !Number.isFinite(qtyPerBatch) ||
+      qtyPerBatch <= 0
+    ) {
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message:
+            "Data resep tidak valid"
+        }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
+        }
+      );
+
+    }
+
+
+    // ------------------------------------------------------
+    // Pastikan SKU bahan memang ada
+    // ------------------------------------------------------
+
+    const bahan =
+      await env.DB.prepare(`
+        SELECT sku
+        FROM bahan
+        WHERE sku = ?
+      `)
+      .bind(sku)
+      .first();
+
+
+    if (!bahan) {
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message:
+            "SKU bahan tidak ditemukan"
+        }),
+        {
+          status: 404,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
+        }
+      );
+
+    }
+
+
+    // ------------------------------------------------------
+    // INSERT
+    // ------------------------------------------------------
+
+    await env.DB.prepare(`
+      INSERT INTO resep (
+        produk,
+        sku,
+        qty_per_batch
+      )
+      VALUES (?, ?, ?)
+    `)
+    .bind(
+      produk,
+      sku,
+      qtyPerBatch
+    )
+    .run();
+
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message:
+          "Resep berhasil ditambahkan",
+        data: {
+          produk,
+          sku,
+          qtyPerBatch
+        }
+      }),
+      {
+        status: 201,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+
+  }
+
+
+  // --------------------------------------------------------
+  // METHOD TIDAK DIDUKUNG
+  // --------------------------------------------------------
+
+  return new Response(
+    JSON.stringify({
+      success: false,
+      message:
+        "Method tidak didukung"
+    }),
+    {
+      status: 405,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      }
+    }
+  );
+
+}
+
 
       // ======================================================
       // ROUTE LAMA → GAS
