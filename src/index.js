@@ -250,6 +250,188 @@ if (
     );
   }
 
+// --------------------------------------------------------
+// PUT — update bahan
+// --------------------------------------------------------
+
+if (request.method === "PUT") {
+
+  const data = await request.json();
+
+  if (!data || !data.sku) {
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: "SKU wajib diisi"
+      }),
+      {
+        status: 400,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+  }
+
+  const sku =
+    String(data.sku).trim();
+
+  const nama =
+    String(data.nama || "").trim();
+
+  const kategori =
+    String(data.kategori || "").trim();
+
+  const stok =
+    Number(data.stok) || 0;
+
+  const satuan =
+    String(data.satuan || "").trim();
+
+  const minStok =
+    Number(data.minStok) || 0;
+
+  const expired =
+    data.expired
+      ? String(data.expired).trim()
+      : null;
+
+
+  const result =
+    await env.DB.prepare(`
+      UPDATE bahan
+      SET
+        nama = ?,
+        kategori = ?,
+        stok = ?,
+        satuan = ?,
+        min_stok = ?,
+        expired = ?
+      WHERE sku = ?
+    `)
+    .bind(
+      nama,
+      kategori,
+      stok,
+      satuan,
+      minStok,
+      expired,
+      sku
+    )
+    .run();
+
+
+  if (result.meta.changes === 0) {
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: "SKU tidak ditemukan"
+      }),
+      {
+        status: 404,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+
+  }
+
+
+  return new Response(
+    JSON.stringify({
+      success: true,
+      message: "Bahan berhasil diupdate"
+    }),
+    {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      }
+    }
+  );
+
+}
+
+// --------------------------------------------------------
+// DELETE — hapus bahan
+// --------------------------------------------------------
+
+if (request.method === "DELETE") {
+
+  const data = await request.json();
+
+  if (!data || !data.sku) {
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: "SKU wajib diisi"
+      }),
+      {
+        status: 400,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+
+  }
+
+  const sku =
+    String(data.sku).trim();
+
+
+  const result =
+    await env.DB.prepare(`
+      DELETE FROM bahan
+      WHERE sku = ?
+    `)
+    .bind(sku)
+    .run();
+
+
+  if (result.meta.changes === 0) {
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: "SKU tidak ditemukan"
+      }),
+      {
+        status: 404,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+
+  }
+
+
+  return new Response(
+    JSON.stringify({
+      success: true,
+      message: "Bahan berhasil dihapus"
+    }),
+    {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      }
+    }
+  );
+
+}
+
 
   // --------------------------------------------------------
   // METHOD TIDAK DIDUKUNG
