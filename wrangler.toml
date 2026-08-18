@@ -2,5 +2,10 @@ name = "gudang-roti-boss-api"
 main = "src/index.js"
 compatibility_date = "2024-11-01"
 
+[[d1_databases]]
+binding = "DB"
+database_name = "roti-boss-gudang"
+database_id = "c987f2e2-c367-4625-b50d-d68922ad459e"
+
 [triggers]
 crons = ["*/4 * * * *"]   # setiap 4 menit warm-up
