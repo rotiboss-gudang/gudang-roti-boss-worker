@@ -117,7 +117,7 @@ if (
     const result = await env.DB.prepare(`
       SELECT
         sku,
-        nama,
+        nama_bahan AS nama,
         kategori,
         stok,
         satuan,
@@ -232,7 +232,7 @@ if (
         message: "Bahan berhasil ditambahkan",
         data: {
           sku,
-          nama,
+          nama_bahan,
           kategori,
           stok,
           satuan,
@@ -857,7 +857,7 @@ if (url.pathname === "/api/transaksi") {
         nama,
         qty,
         satuan,
-        stok_lama AS stokLama,
+        stok_awal AS stokLama,
         stok_akhir AS stokFisik,
         keterangan,
         petugas
@@ -1068,10 +1068,10 @@ if (url.pathname === "/api/transaksi") {
           timestamp,
           tipe,
           sku,
-          nama,
+          nama_bahan,
           qty,
           satuan,
-          stok_lama,
+          stok_awal,
           stok_akhir,
           keterangan,
           petugas
