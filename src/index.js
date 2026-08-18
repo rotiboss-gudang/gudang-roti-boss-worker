@@ -905,6 +905,267 @@ export default {
 
       }
 
+      // ==========================================================
+      // D1 — PRODUKSI
+      // POST /api/produksi
+      //
+      // Produksi:
+      // 1. Baca resep
+      // 2. Cek semua stok bahan
+      // 3. Kalau cukup → potong stok
+      // 4. Catat transaksi Keluar
+      // 5. Kalau ada bahan kurang → tidak ada stok yang dipotong
+      // ==========================================================
+
+      if (
+        url.pathname === "/api/produksi" &&
+        request.method === "POST"
+      ) {
+
+        const data =
+          await request.json();
+
+        if (
+          !data ||
+          !data.produk ||
+          data.jumlahBatch === undefined ||
+          !data.petugas
+        ) {
+
+          return new Response(
+            JSON.stringify({
+              success: false,
+              message:
+                "Produk, jumlah batch, dan petugas wajib diisi"
+            }),
+            {
+              status: 400,
+              headers: {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*"
+              }
+            }
+          );
+
+        }
+
+        const produk =
+          String(data.produk).trim();
+
+        const jumlahBatch =
+          Number(data.jumlahBatch);
+
+        const petugas =
+          String(data.petugas).trim();
+
+
+        if (
+          !produk ||
+          !Number.isFinite(jumlahBatch) ||
+          jumlahBatch <= 0
+        ) {
+
+          return new Response(
+            JSON.stringify({
+              success: false,
+              message: "Jumlah batch tidak valid"
+            }),
+            {
+              status: 400,
+              headers: {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*"
+              }
+            }
+          );
+
+        }
+
+
+        // --------------------------------------------------------
+        // AMBIL RESEP + DATA BAHAN
+        // --------------------------------------------------------
+
+        const resep =
+          await env.DB.prepare(`
+            SELECT
+              r.sku,
+              r.qty_per_batch,
+              b.nama,
+              b.stok,
+              b.satuan
+            FROM resep r
+            INNER JOIN bahan b
+              ON b.sku = r.sku
+            WHERE r.produk = ?
+            ORDER BY r.sku
+          `)
+          .bind(produk)
+          .all();
+
+
+        if (
+          !resep.results ||
+          resep.results.length === 0
+        ) {
+
+          return new Response(
+            JSON.stringify({
+              success: false,
+              message:
+                `Resep "${produk}" belum tersedia`
+            }),
+            {
+              status: 404,
+              headers: {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*"
+              }
+            }
+          );
+
+        }
+
+
+        // --------------------------------------------------------
+        // HITUNG KEBUTUHAN + CEK STOK
+        // --------------------------------------------------------
+
+        const kebutuhan = [];
+
+        for (const item of resep.results) {
+
+          const qty =
+            Number(item.qty_per_batch) *
+            jumlahBatch;
+
+          const stok =
+            Number(item.stok) || 0;
+
+          if (stok < qty) {
+
+            return new Response(
+              JSON.stringify({
+                success: false,
+                message:
+                  `Stok ${item.nama} tidak cukup. ` +
+                  `Butuh ${qty} ${item.satuan}, ` +
+                  `tersedia ${stok} ${item.satuan}.`
+              }),
+              {
+                status: 400,
+                headers: {
+                  "Content-Type": "application/json",
+                  "Access-Control-Allow-Origin": "*"
+                }
+              }
+            );
+
+          }
+
+          kebutuhan.push({
+            sku: item.sku,
+            nama: item.nama,
+            qty,
+            satuan: item.satuan,
+            stokLama: stok,
+            stokAkhir: stok - qty
+          });
+
+        }
+
+
+        // --------------------------------------------------------
+        // POTONG STOK + CATAT TRANSAKSI
+        // --------------------------------------------------------
+
+        const statements = [];
+
+        for (const item of kebutuhan) {
+
+          statements.push(
+            env.DB.prepare(`
+              UPDATE bahan
+              SET stok = ?
+              WHERE sku = ?
+            `)
+            .bind(
+              item.stokAkhir,
+              item.sku
+            )
+          );
+
+          statements.push(
+            env.DB.prepare(`
+              INSERT INTO transaksi (
+                id_transaksi,
+                timestamp,
+                tipe,
+                sku,
+                nama,
+                qty,
+                satuan,
+                stok_lama,
+                stok_akhir,
+                keterangan,
+                petugas
+              )
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `)
+            .bind(
+              crypto.randomUUID(),
+              new Date().toISOString(),
+              "Keluar",
+              item.sku,
+              item.nama,
+              item.qty,
+              item.satuan,
+              item.stokLama,
+              item.stokAkhir,
+              `Produksi ${produk} (${jumlahBatch} batch)`,
+              petugas
+            )
+          );
+
+        }
+
+
+        await env.DB.batch(statements);
+
+
+        // --------------------------------------------------------
+        // RESPONSE
+        // --------------------------------------------------------
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message:
+              `Produksi "${produk}" ${jumlahBatch} batch berhasil.`,
+            data: {
+              produk,
+              jumlahBatch,
+              petugas,
+              bahan: kebutuhan.map(item => ({
+                sku: item.sku,
+                nama: item.nama,
+                qty: item.qty,
+                satuan: item.satuan,
+                stokAkhir: item.stokAkhir
+              }))
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*"
+            }
+          }
+        );
+
+      }
+
 
       // ======================================================
       // ROUTE LAMA → GAS
