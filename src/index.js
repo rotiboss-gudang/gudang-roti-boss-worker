@@ -30,6 +30,69 @@ export default {
 
     try {
 
+// ======================================================
+      // D1 — USERS (Login)
+      // ======================================================
+
+      // GET daftar user (untuk dropdown login)
+      if (
+        request.method === "GET" &&
+        (pathname === "/api/users" || url.searchParams.get("action") === "getUsers")
+      ) {
+        const result = await env.DB.prepare(`
+          SELECT nama, role
+          FROM users
+          ORDER BY nama COLLATE NOCASE ASC
+        `).all();
+
+        // Format lama biar kompatibel dengan frontend
+        return json(result.results || []);
+      }
+
+      // POST login
+      if (
+        request.method === "POST" &&
+        (pathname === "/api/login" || url.searchParams.get("action") === "loginPetugas")
+      ) {
+        let body = {};
+        try {
+          const text = await request.text();
+          body = text ? JSON.parse(text) : {};
+        } catch (e) {}
+
+        // Support format lama: { action: "loginPetugas", data: { nama, pin } }
+        const data = body.data || body;
+        const nama = String(data.nama || "").trim();
+        const pin = String(data.pin || "").trim();
+
+        if (!nama || !pin) {
+          return json({
+            success: false,
+            message: "Nama dan PIN wajib diisi"
+          }, 400);
+        }
+
+        const user = await env.DB.prepare(`
+          SELECT nama, role, pin
+          FROM users
+          WHERE nama = ?
+        `).bind(nama).first();
+
+        if (!user || user.pin !== pin) {
+          return json({
+            success: false,
+            message: "Nama atau PIN salah"
+          }, 401);
+        }
+
+        return json({
+          success: true,
+          nama: user.nama,
+          role: user.role,
+          message: "Login berhasil"
+        });
+      }
+
       // ======================================================
       // D1 TEST
       // GET /api/db-test
