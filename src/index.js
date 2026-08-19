@@ -45,54 +45,52 @@ export default {
           ORDER BY nama COLLATE NOCASE ASC
         `).all();
 
-        // Format lama biar kompatibel dengan frontend
         return json(result.results || []);
       }
 
-      // POST login
-      if (
-        request.method === "POST" &&
-        (pathname === "/api/login" || url.searchParams.get("action") === "loginPetugas")
-      ) {
+      // POST login — support action di body maupun di URL
+      if (request.method === "POST") {
         let body = {};
         try {
           const text = await request.text();
           body = text ? JSON.parse(text) : {};
         } catch (e) {}
 
-        // Support format lama: { action: "loginPetugas", data: { nama, pin } }
+        const action = body.action || url.searchParams.get("action") || "";
         const data = body.data || body;
         const nama = String(data.nama || "").trim();
         const pin = String(data.pin || "").trim();
 
-        if (!nama || !pin) {
+        // Hanya proses kalau ini request login
+        if (action === "loginPetugas" || pathname === "/api/login") {
+          if (!nama || !pin) {
+            return json({
+              success: false,
+              message: "Nama dan PIN wajib diisi"
+            }, 400);
+          }
+
+          const user = await env.DB.prepare(`
+            SELECT nama, role, pin
+            FROM users
+            WHERE nama = ?
+          `).bind(nama).first();
+
+          if (!user || user.pin !== pin) {
+            return json({
+              success: false,
+              message: "Nama atau PIN salah"
+            }, 401);
+          }
+
           return json({
-            success: false,
-            message: "Nama dan PIN wajib diisi"
-          }, 400);
+            success: true,
+            nama: user.nama,
+            role: user.role,
+            message: "Login berhasil"
+          });
         }
-
-        const user = await env.DB.prepare(`
-          SELECT nama, role, pin
-          FROM users
-          WHERE nama = ?
-        `).bind(nama).first();
-
-        if (!user || user.pin !== pin) {
-          return json({
-            success: false,
-            message: "Nama atau PIN salah"
-          }, 401);
-        }
-
-        return json({
-          success: true,
-          nama: user.nama,
-          role: user.role,
-          message: "Login berhasil"
-        });
       }
-
       // ======================================================
       // D1 TEST
       // GET /api/db-test
